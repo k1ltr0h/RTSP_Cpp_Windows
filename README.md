@@ -5,9 +5,9 @@
 
 ### Compilation and execution
 
-`g++ cam_2.cpp -o video -L "D:\opencv-4.4.0\build\lib" -I "D:\opencv-4.4.0\build\include" -lopencv_highgui440 -lopencv_imgcodecs440 -lopencv_core440 -lopencv_videoio440`
+`g++ rtsp.cpp -o video -L "C:\opencv440\install\x64\mingw\lib" -I "C:\opencv440\install\include" -lopencv_highgui440 -lopencv_imgcodecs440 -lopencv_core440 -lopencv_videoio440`
 
-`rtsp.exe`
+`video.exe`
 
 ### Details
 
