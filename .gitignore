@@ -1,2 +1,7 @@
 env.h
 *.exe
+*.dll
+*.rc
+*.res
+*.avi
+grabaciones/
