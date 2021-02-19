@@ -1,4 +1,5 @@
 #include "opencv2\opencv.hpp" 
+#include "opencv2\videoio.hpp"
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
@@ -6,7 +7,9 @@
 #include <thread>
 #include <queue>
 #include <mutex>          // std::mutex
+#include "Button.h"
 #include "env.h"
+
 #define WIDTH 1024
 #define HEIGHT 600
 #define REC_WIDTH 640
@@ -17,28 +20,32 @@
 void pressRecord(int state, void* var);
 // Buscar video en directorio y guardarlo en grabaciones(sobreescribir archivo en grabaciones).
 void mvVideo();
-void displayAndRec(cv::Mat* frame);
+void displayAndRec();
 void receive(cv::Mat* frame);
+void CallBackFunc(int event, int x, int y, int flags, void* userdata);
 
-int value = 0;
-enum recording {NO, YES};
+enum recording {OFF, ON};
 //--- INITIALIZE VIDEOCAPTURE
+Button* rec_Button;
 cv::VideoCapture cap;
 cv::VideoWriter video;
 std::queue<cv::Mat> frames;
 std::mutex mtx;           // mutex for critical section
-
-bool keepRecording = false;
+//std::string pipe = "uridecodebin uri=rtsp://<user>:<pass>@192.168.0.2:554/onvif1 ! videoconvert ! videoscale ! appsink";
 
 int main(int, char**){
+    //printf("%s\n", cv::getBuildInformation().c_str());
     mvVideo();
     //Create window
     cv::namedWindow("Live", cv::WINDOW_NORMAL);
     cv::resizeWindow("Live", WIDTH, HEIGHT);
-    cv::createTrackbar( "Grabar", "Live", &value, 1, pressRecord, &keepRecording);
+    //cv::setWindowProperty("Live", cv::WND_PROP_FULLSCREEN, cv::WINDOW_AUTOSIZE);
+    //cv::createTrackbar( "Grabar", "Live", &value, 1, pressRecord, &keepRecording);
     cap.set(cv::CAP_PROP_BUFFERSIZE, 1);
-    cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('H', '2', '6', '4'));
-    cap.set(cv::CAP_PROP_CODEC_PIXEL_FORMAT, cv::VideoWriter::fourcc('H', '2', '6', '4'));
+    cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
+    cap.set(cv::CAP_PROP_CODEC_PIXEL_FORMAT, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
+    //set the callback function for any mouse event
+    cv::setMouseCallback("Live", CallBackFunc, NULL);
     //createButton("b",NULL); //Need QT
     //cap.setExceptionMode(true);
     //cap.set(CAP_PROP_FPS, 15);
@@ -70,7 +77,7 @@ int main(int, char**){
     //cap.read(frame);
     //printf("%d-%d\n", cap.get(CAP_PROP_FRAME_WIDTH), cap.get(CAP_PROP_FRAME_HEIGHT));
     std::thread read(receive, &frame);
-    std::thread disp(displayAndRec, &frame);
+    std::thread disp(displayAndRec);
     //thread recVideo(rec, &frame);
     read.detach();
     disp.detach();
@@ -102,18 +109,21 @@ int main(int, char**){
 }
 
 void receive(cv::Mat* frame){
+    printf("try to open camera o.o\n");
     cap.open(rtsp.c_str(), cv::CAP_FFMPEG);
     if (!cap.isOpened()) {
         std::cerr << "ERROR! Unable to open camera\n";
         printf("Press enter to exit");
-        scanf("Press Enter", NULL);
+        scanf("Press Enter");
         return;
     }
+    //printf("isOpen");
     while(true){
         try{
             mtx.lock();
             cap.read(*frame);
-            //printf("\ntotal: %d\n", frame->total());
+            //printf("Read");
+            //printf("\nMat size: %d\n", frame->size);
             resize(*frame, *frame, cv::Size(REC_WIDTH, REC_HEIGHT));
             if (frame->empty()) {
                 std::cerr << "ERROR! blank frame grabbed\n";
@@ -134,9 +144,13 @@ void receive(cv::Mat* frame){
     }
 }
 
-void displayAndRec(cv::Mat* frame){
+void displayAndRec(){
     cv::Mat tmp, bar;
-    bar = cv::Mat::zeros(cv::Size(REC_WIDTH, 100), CV_8UC3);
+    cv::Scalar color(100, 50, 0); //BGR
+    bar = cv::Mat::zeros(cv::Size(REC_WIDTH, 50), CV_8UC3);
+    bar = cv::Mat(bar.rows, bar.cols, CV_8UC3, color);
+    cv::putText(bar, "Grabar: ", cv::Point(10, bar.rows/2), cv::FONT_HERSHEY_TRIPLEX, 0.6, CV_RGB(255, 255, 0), 1);
+    rec_Button = new Button(bar, cv::Point(bar.cols/6, bar.rows/2), 10, cv::Scalar(0, 0, 255), cv::Scalar(0, 255, 0));
     while(true){
         //printf("%d", frames.empty());
         try{
@@ -145,14 +159,18 @@ void displayAndRec(cv::Mat* frame){
                 mtx.lock();
                 tmp = frames.front();
                 frames.pop();
-                //hconcat(a, b, dst) // horizontal
-                //vconcat(bar, tmp, tmp); // vertical
-                // Write the frame into the file 'video.avi'
-                //printf("queue size: %d\n", frames.size());
-                if(keepRecording){
+                if(rec_Button->getState()){
                     //resize(tmp, tmp, Size(WIDTH, HEIGHT));
                     video.write(tmp);
                 }
+                if(rec_Button->getState() == ON){
+                    cv::putText(tmp, "Grabando", cv::Point(10, tmp.rows / 10), //top-left position
+                    cv::FONT_HERSHEY_TRIPLEX, 1.0, CV_RGB(255, 0, 0), 2);
+                }
+                //hconcat(a, b, dst) // horizontal
+                vconcat(bar, tmp, tmp); // vertical
+                // Write the frame into the file 'video.avi'
+                //printf("queue size: %d\n", frames.size());
                 imshow("Live", tmp);
                 //printf("show");
                 //waitKey(500);
@@ -167,24 +185,23 @@ void displayAndRec(cv::Mat* frame){
     printf("morí :c");
 }
 
-void pressRecord(int state, void* var){
+void pressRecord(){
     Sleep(10);
-    bool *rec = (bool*)var;
-    if(state == NO){
-        printf("Stop recording");
-        *rec = false;
+    if(rec_Button->getState() == ON){
+        printf("Stop recording\n");
         video.release();
+        rec_Button->changeState();
     }
     else{
-        printf("Start recording");
-        video.open("video.avi",cv::CAP_FFMPEG, cv::VideoWriter::fourcc('M','J','P','G'), 10, 
-        cv::Size(WIDTH, HEIGHT), true);
+        printf("Start recording\n");
+        video.open("video.avi", cv::CAP_FFMPEG, cv::VideoWriter::fourcc('M','J','P','G'), 10, 
+        cv::Size(REC_WIDTH, REC_HEIGHT), true);
         //Size(cap.get(CAP_PROP_FRAME_WIDTH), cap.get(CAP_PROP_FRAME_HEIGHT)), true);
+        rec_Button->changeState();
 
         if(!video.isOpened()){
             printf("No se ha podido grabar :c\n");
         }
-        *rec = true;
     }
 }
 
@@ -200,4 +217,25 @@ void mvVideo(){
         }
         closedir(d);
     }
+}
+
+void CallBackFunc(int event, int x, int y, int flags, void* userdata){
+     if  ( event == cv::EVENT_LBUTTONDOWN ){
+        int rec_x = rec_Button->getCenter().x;
+        int rec_y = rec_Button->getCenter().y;
+        int rad = rec_Button->getRadius();
+        if(x >= rec_x - rad && x<= rec_x + rad && y >= rec_y - rad && y <= rec_y + rad){
+            pressRecord();
+        }
+     }
+     else if  ( event == cv::EVENT_RBUTTONDOWN ){
+          
+     }
+     else if  ( event == cv::EVENT_MBUTTONDOWN ){
+
+     }
+     else if ( event == cv::EVENT_MOUSEMOVE ){
+
+
+     }
 }
