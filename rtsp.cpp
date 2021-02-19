@@ -7,17 +7,18 @@
 #include <thread>
 #include <queue>
 #include <mutex>          // std::mutex
-#include "Button.h"
+#include "RecButton.h"
 #include "env.h"
 
-#define WIDTH 1024
-#define HEIGHT 600
-#define REC_WIDTH 640
-#define REC_HEIGHT 480
-#define MAX_LENGHT 10
+// Defined inside env.h
+//#define WIDTH 1024
+//#define HEIGHT 600
+//#define REC_WIDTH 640
+//#define REC_HEIGHT 480
+//#define MAX_LENGHT 10
+//std::string rtsp = "rtsp://user:pass@ip:port"
+// End env.h
 
-// Grabar video (Detener o Comenzar)
-void pressRecord(int state, void* var);
 // Buscar video en directorio y guardarlo en grabaciones(sobreescribir archivo en grabaciones).
 void mvVideo();
 void displayAndRec();
@@ -26,12 +27,11 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata);
 
 enum recording {OFF, ON};
 //--- INITIALIZE VIDEOCAPTURE
-Button* rec_Button;
+RecButton* rec_Button;
 cv::VideoCapture cap;
 cv::VideoWriter video;
 std::queue<cv::Mat> frames;
 std::mutex mtx;           // mutex for critical section
-//std::string pipe = "uridecodebin uri=rtsp://<user>:<pass>@192.168.0.2:554/onvif1 ! videoconvert ! videoscale ! appsink";
 
 int main(int, char**){
     //printf("%s\n", cv::getBuildInformation().c_str());
@@ -150,7 +150,7 @@ void displayAndRec(){
     bar = cv::Mat::zeros(cv::Size(REC_WIDTH, 50), CV_8UC3);
     bar = cv::Mat(bar.rows, bar.cols, CV_8UC3, color);
     cv::putText(bar, "Grabar: ", cv::Point(10, bar.rows/2), cv::FONT_HERSHEY_TRIPLEX, 0.6, CV_RGB(255, 255, 0), 1);
-    rec_Button = new Button(bar, cv::Point(bar.cols/6, bar.rows/2), 10, cv::Scalar(0, 0, 255), cv::Scalar(0, 255, 0));
+    rec_Button = new RecButton(bar, cv::Point(bar.cols/6, bar.rows/2), 10, cv::Scalar(0, 0, 255), cv::Scalar(0, 255, 0), &video);
     while(true){
         //printf("%d", frames.empty());
         try{
@@ -185,26 +185,6 @@ void displayAndRec(){
     printf("morí :c");
 }
 
-void pressRecord(){
-    Sleep(10);
-    if(rec_Button->getState() == ON){
-        printf("Stop recording\n");
-        video.release();
-        rec_Button->changeState();
-    }
-    else{
-        printf("Start recording\n");
-        video.open("video.avi", cv::CAP_FFMPEG, cv::VideoWriter::fourcc('M','J','P','G'), 10, 
-        cv::Size(REC_WIDTH, REC_HEIGHT), true);
-        //Size(cap.get(CAP_PROP_FRAME_WIDTH), cap.get(CAP_PROP_FRAME_HEIGHT)), true);
-        rec_Button->changeState();
-
-        if(!video.isOpened()){
-            printf("No se ha podido grabar :c\n");
-        }
-    }
-}
-
 void mvVideo(){
     DIR *d;
     struct dirent *dir;
@@ -221,12 +201,7 @@ void mvVideo(){
 
 void CallBackFunc(int event, int x, int y, int flags, void* userdata){
      if  ( event == cv::EVENT_LBUTTONDOWN ){
-        int rec_x = rec_Button->getCenter().x;
-        int rec_y = rec_Button->getCenter().y;
-        int rad = rec_Button->getRadius();
-        if(x >= rec_x - rad && x<= rec_x + rad && y >= rec_y - rad && y <= rec_y + rad){
-            pressRecord();
-        }
+        rec_Button->pressed(x, y);
      }
      else if  ( event == cv::EVENT_RBUTTONDOWN ){
           

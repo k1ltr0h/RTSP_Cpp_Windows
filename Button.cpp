@@ -31,6 +31,15 @@ void Button::render(){
     circle(img, center, radius, actual_Color, cv::FILLED, cv::LINE_AA);
 }
 
+void Button::pressed(int x, int y){
+    int rec_x = this->getCenter().x;
+    int rec_y = this->getCenter().y;
+    int rad = this->getRadius();
+    if(x >= rec_x - rad && x<= rec_x + rad && y >= rec_y - rad && y <= rec_y + rad){
+        printf("Pressed");
+    }
+}
+
 cv::Point Button::getCenter(){
     return center;
 }

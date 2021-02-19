@@ -1,5 +1,7 @@
 #include <stdio.h>
+#include <windows.h>
 #include "opencv2\opencv.hpp" 
+#include "env.h"
 
 class Button{
 public:
@@ -7,11 +9,12 @@ public:
     ~Button();
     void changeState();
     void render();
+    virtual void pressed(int x, int y);
     cv::Point getCenter();
     int getRadius();
     bool getState();
-private:
     enum pressed{OFF, ON};
+private:
     cv::Mat img;
     cv::Scalar on_Color;
     cv::Scalar off_Color;
