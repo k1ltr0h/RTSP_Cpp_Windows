@@ -23,15 +23,19 @@
 void mvVideo();
 void displayAndRec();
 void receive(cv::Mat* frame);
-void CallBackFunc(int event, int x, int y, int flags, void* userdata);
+void mouseCallBack(int event, int x, int y, int flags, void* userdata);
+char* readCredentials();
+int readData(FILE* file, char* data, int size);
 
 enum recording {OFF, ON};
+enum fileData {PROTOCOL, USER, PASS, IP, PORT, ROUTE};
 //--- INITIALIZE VIDEOCAPTURE
 RecButton* rec_Button;
 cv::VideoCapture cap;
 cv::VideoWriter video;
 std::queue<cv::Mat> frames;
 std::mutex mtx;           // mutex for critical section
+char* url; // rtsp://user:pass@ip:port/route
 
 int main(int, char**){
     //printf("%s\n", cv::getBuildInformation().c_str());
@@ -45,7 +49,7 @@ int main(int, char**){
     cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
     cap.set(cv::CAP_PROP_CODEC_PIXEL_FORMAT, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
     //set the callback function for any mouse event
-    cv::setMouseCallback("Live", CallBackFunc, NULL);
+    cv::setMouseCallback("Live", mouseCallBack, NULL);
     //createButton("b",NULL); //Need QT
     //cap.setExceptionMode(true);
     //cap.set(CAP_PROP_FPS, 15);
@@ -104,13 +108,21 @@ int main(int, char**){
 	cap.release();
 	video.release();
     cv::destroyAllWindows();
+    delete rec_Button;
+    delete url;
     
     return 0;
 }
 
 void receive(cv::Mat* frame){
     printf("try to open camera o.o\n");
-    cap.open(rtsp.c_str(), cv::CAP_FFMPEG);
+    url = readCredentials();
+    if(url == NULL){
+        printf("camera_credentials.txt file does not exist!, please create the file and fill it");
+        return;
+    }
+    //rtsp.c_str()
+    cap.open(url, cv::CAP_FFMPEG);
     if (!cap.isOpened()) {
         std::cerr << "ERROR! Unable to open camera\n";
         printf("Press enter to exit");
@@ -199,7 +211,106 @@ void mvVideo(){
     }
 }
 
-void CallBackFunc(int event, int x, int y, int flags, void* userdata){
+char* readCredentials(){
+    char* data = new char[MAX_ARRAY_LENGHT];
+    char tmp;
+    char* all_Data[6];
+    FILE* file = fopen("camera_credentials.txt", "r");
+    int size;
+    memset(data, 0, MAX_ARRAY_LENGHT);
+
+    while(tmp != EOF){
+        tmp = fgetc(file);
+        //printf("%c", tmp);
+        if(tmp == '#'){
+            size = 0;
+            while(tmp != '='){
+                tmp = fgetc(file);
+                if(tmp != '='){
+                    data[size] = tmp;
+                    size++;
+                }
+            }
+            //printf("%s ", data);
+            if(strcmp(data, "PROTOCOL") == 0){
+                size = readData(file, data, size);
+                all_Data[PROTOCOL] = new char[size];
+                strcpy(all_Data[PROTOCOL], data);
+                //printf("PROTOCOL: %s\n", all_Data[PROTOCOL]);
+            }
+            else if(strcmp(data, "USER") == 0){
+                size = readData(file, data, size);
+                all_Data[USER] = new char[size];
+                strcpy(all_Data[USER], data);
+                //printf("user: %s", all_Data[USER]);
+            }
+            else if(strcmp(data, "PASS") == 0){
+                size = readData(file, data, size);
+                all_Data[PASS] = new char[size];
+                strcpy(all_Data[PASS], data);
+                //printf("pass: %s", all_Data[PASS]);
+            }
+            else if(strcmp(data, "IP") == 0){
+                size = readData(file, data, size);
+                all_Data[IP] = new char[size];
+                strcpy(all_Data[IP], data);
+                //printf("ip: %s", all_Data[IP]);
+            }
+            else if(strcmp(data, "PORT") == 0){
+                size = readData(file, data, size);
+                all_Data[PORT] = new char[size];
+                strcpy(all_Data[PORT], data);
+                //printf("port: %s", all_Data[PORT]);
+            }
+            else if(strcmp(data, "ROUTE") == 0){
+                size = readData(file, data, size);
+                all_Data[ROUTE] = new char[size];
+                strcpy(all_Data[ROUTE], data);
+                //printf("route: %s", all_Data[ROUTE]);
+            }
+
+            //printf("\naqui\n");
+            memset(data, 0, size);
+        }
+    }
+
+    fclose(file);
+
+    strcpy(data, all_Data[PROTOCOL]);
+    strcat(data, "://");
+    strcat(data, all_Data[USER]);
+    strcat(data, ":");
+    strcat(data, all_Data[PASS]);
+    strcat(data, "@");
+    strcat(data, all_Data[IP]);
+    strcat(data, ":");
+    strcat(data, all_Data[PORT]);
+    strcat(data, all_Data[ROUTE]);
+    //printf("data: %s", data);
+
+    for(int i = PROTOCOL; i <= ROUTE; i++){
+        delete all_Data[i];
+    }
+
+    return data;
+}
+
+int readData(FILE* file, char* data, int size){
+    char tmp = ' ';
+    memset(data, 0, size);
+    size = 0;
+    while(tmp != '\n' && tmp != EOF){
+        tmp = fgetc(file);
+        if(tmp != '\n' && tmp != EOF){
+            data[size] = tmp;
+            size++;
+        }
+    }
+    //printf("%s\n", data);
+    return size;
+}
+
+void mouseCallBack(int event, int x, int y, int flags, void* userdata){
      if  ( event == cv::EVENT_LBUTTONDOWN ){
         rec_Button->pressed(x, y);
      }

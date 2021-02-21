@@ -6,7 +6,7 @@
 class Button{
 public:
     Button(cv::Mat img_, cv::Point center_, int radius, cv::Scalar on_Color_, cv::Scalar off_Color_);
-    ~Button();
+    virtual ~Button();
     void changeState();
     void render();
     virtual void pressed(int x, int y);

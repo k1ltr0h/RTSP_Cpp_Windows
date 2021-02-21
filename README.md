@@ -11,4 +11,5 @@
 
 ### Details
 
-* I used `env.h` for confidential global variables
+* I used `camera_credentials.txt` for confidential data.
+* I used `env.h` for important global variables.
