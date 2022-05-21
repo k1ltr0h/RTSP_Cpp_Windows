@@ -1,0 +1,7 @@
+*.exe
+*.dll
+*.rc
+*.res
+*.avi
+grabaciones/
+*.txt
